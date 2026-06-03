@@ -1,23 +1,23 @@
-const DIDRegistry = artifacts.require("DIDRegistry");
+import fs from "fs";
 
-module.exports = async function (deployer, network, accounts) {
-  await deployer.deploy(DIDRegistry);
-  const registry = await DIDRegistry.deployed();
-
+(async () => {
   console.log("\n=======================================================");
-  console.log("🚀 Truffle Migration: コントラクトデプロイ ＆ 初期特権設定");
+  console.log("📦 手順6: 新しいIoTデータBのIPFSアップロード ＆ CID生成");
   console.log("=======================================================\n");
 
-  const company = accounts[0]; 
-  const userA = accounts[2];   
+  console.log("[1] 外部のデータファイル（iot-data-b2.json）を読み込み中...");
+  const iotDataB = JSON.parse(fs.readFileSync("demo/data/iot-data-b2.json", "utf8"));
 
-  console.log(`  ▶ 特権ユーザーA (UserA) の初期設定を開始: ${userA}`);
+  console.log("[⚙️ 引用したデータBの内容確認]:");
+  console.log(JSON.stringify(iotDataB, null, 2));
 
-  // デプロイ直後に、ユーザーAへ最初から2つの属性を自動付与
-  await registry.assignAttribute(userA, "Attribute_A", { from: company });
-  await registry.assignAttribute(userA, "Attribute_B", { from: company });
+  const dummyCidB = "QmNewDataB_SensorPayload7777777777777777777";
+  const outputData = { cid: dummyCidB, data: iotDataB };
 
-  console.log("\n  ✅ 【初期特権セットアップ完了】");
-  console.log("    → ユーザーAは最初からマルチ属性(A・B)を持つ特権状態として起動しました。");
-  console.log("=======================================================\n");
-};
+  if (!fs.existsSync("demo/output")) { fs.mkdirSync("demo/output", { recursive: true }); }
+  fs.writeFileSync("demo/output/ipfs_iot_data_B.json", JSON.stringify(outputData, null, 2));
+
+  console.log("\n✅ 【データBのIPFSアップロード完了】");
+  console.log(`  ▶ 生成されたハッシュ(CID): ${dummyCidB}\n`);
+  console.log("=======================================================");
+})();
