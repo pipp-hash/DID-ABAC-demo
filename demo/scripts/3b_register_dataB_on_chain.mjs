@@ -11,13 +11,19 @@ import { createWeb3, getAccounts, getRegistryContract, registerIoTRecord } from 
   const accounts = await getAccounts(web3);
   const userA = accounts[2]; 
 
-  // IPFSの出力ファイルからCIDを引用
-  const ipfsDataB = JSON.parse(fs.readFileSync("demo/output/ipfs_iot_data_B.json", "utf8"));
-  const cidB = ipfsDataB.cid;
+  // ✨ データAと完全に同一形式！企業の発行したVCファイルからスマートに自動引用します
+  console.log("[1] 企業が発行したデータB用の VC を読み込み中...");
+  const vcB = JSON.parse(fs.readFileSync("demo/output/vc_device_auth_B.json", "utf8"));
+  
+  const subjectDidB = vcB.subject; // VCから自動引用 ("did:example:userB_data")
+  const cidB = vcB.claim.cid;      // VCから自動引用 ("QmNewDataB_...")
   const requiredAttribute = "Attribute_B"; 
 
+  console.log(`   ▶ 抽出した DID : ${subjectDidB}`);
+  console.log(`   ▶ 抽出した CID : ${cidB}\n`);
+
   console.log("➡️  データBのポリシーをブロックチェーンに書き込み中...");
-  await registerIoTRecord(registry, userA, "did:example:userB_data", cidB, requiredAttribute);
+  await registerIoTRecord(registry, userA, subjectDidB, cidB, requiredAttribute);
 
   console.log("\n✅ 【データB登録完了】");
   console.log(`  → ブロックチェーン上に [${requiredAttribute}] でロックされたデータBが追加されました。\n`);
