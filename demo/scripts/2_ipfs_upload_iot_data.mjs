@@ -1,23 +1,46 @@
 import fs from "fs";
+import { connectIPFS, uploadFile } from "../../lib/ipfs_client.mjs";
 
 (async () => {
-  console.log("\n=======================================================");
-  console.log("📦 手順6: 新しいIoTデータBのIPFSアップロード ＆ CID生成");
-  console.log("=======================================================\n");
+  console.log("\n==========================================");
+  console.log("🟦 手順4: IoTデータAをIPFSへアップロード");
+  console.log("==========================================\n");
 
-  console.log("[1] 外部のデータファイル（iot-data-b2.json）を読み込み中...");
-  const iotDataB = JSON.parse(fs.readFileSync("demo/data/iot-data-b2.json", "utf8"));
+  // --- IPFS 接続 ---
+  console.log("[1] ローカル IPFS ノードへ接続しています...");
+  const ipfs = connectIPFS();
+  console.log("   → 接続成功\n");
 
-  console.log("[⚙️ 引用したデータBの内容確認]:");
-  console.log(JSON.stringify(iotDataB, null, 2));
+  // --- アップロードするファイル読み込み ---
+  const filePath = "demo/data/iot-data.json";
+  const content = fs.readFileSync(filePath);
 
-  const dummyCidB = "QmNewDataB_SensorPayload7777777777777777777";
-  const outputData = { cid: dummyCidB, data: iotDataB };
+  console.log("[2] IoTデータファイルを読み込みました");
+  console.log(` 対象ファイル： ${filePath}\n`);
 
-  if (!fs.existsSync("demo/output")) { fs.mkdirSync("demo/output", { recursive: true }); }
-  fs.writeFileSync("demo/output/ipfs_iot_data_B.json", JSON.stringify(outputData, null, 2));
+  // --- IPFS アップロード ---
+  console.log("[3] IPFS へデータをアップロード中...\n");
 
-  console.log("\n✅ 【データBのIPFSアップロード完了】");
-  console.log(`  ▶ 生成されたハッシュ(CID): ${dummyCidB}\n`);
-  console.log("=======================================================");
+  const cid = await uploadFile(ipfs, filePath);
+
+  // --- ✨【重要】データBと出力形式を完全に統一する修正 ---
+  // テキストファイルではなく、CIDと中身のデータをセットにしたJSON形式で保存します
+  const outputData = {
+    cid: cid,
+    data: JSON.parse(content.toString())
+  };
+
+  if (!fs.existsSync("demo/output")) { 
+    fs.mkdirSync("demo/output", { recursive: true }); 
+  }
+  
+  // 後続のプログラム（手順7のVC発行スクリプトなど）が「ipfs_iot_data.json」を読み込めるようにします
+  fs.writeFileSync("demo/output/ipfs_iot_data.json", JSON.stringify(outputData, null, 2));
+
+  console.log("[4] アップロード完了！");
+  console.log(` →取得したIPFS CID: ${cid}\n`);
+
+  console.log("==========================================");
+  console.log("🎉 IPFS アップロード処理 完了");
+  console.log("==========================================\n");
 })();
