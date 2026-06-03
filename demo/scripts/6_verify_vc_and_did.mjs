@@ -3,7 +3,8 @@ import { createWeb3, getAccounts, getRegistryContract, findIoTRecord } from "../
 
 (async () => {
   const web3 = createWeb3();
-  const vc = JSON.parse(fs.readFileSync("demo/output/vc_user_signed.json", "utf8"));
+  const vcA = JSON.parse(fs.readFileSync("demo/output/vc_user_signed.json", "utf8"));
+  const vcB = JSON.parse(fs.readFileSync("demo/output/vc_device_auth_B.json", "utf8"));
 
   console.log("\n=======================================================");
   console.log("🟦 手順9: 特権ユーザーAによる両データへのアクセス確認（事前付与済み）");
@@ -13,10 +14,12 @@ import { createWeb3, getAccounts, getRegistryContract, findIoTRecord } from "../
   const accounts = await getAccounts(web3);
   const userA = accounts[2];   
 
-  const subjectDidA = vc.subject;
-  const subjectDidB = "did:example:userB_data";
-  const cidA = vc.claim.cid;
-  const cidB = "QmNewDataB_SensorPayload7777777777777777777";
+  // ✨ データA、データBともに、それぞれのVCからスマートにCIDを自動引用する形式に完全に統一！
+  const subjectDidA = vcA.subject;
+  const cidA = vcA.claim.cid; 
+
+  const subjectDidB = vcB.subject;
+  const cidB = vcB.claim.cid;
 
   console.log(`[⚙️ 状況確認] ユーザーA (UserA): ${userA} ➔ 手順3時点で特権（A・B）付与済み\n`);
 
