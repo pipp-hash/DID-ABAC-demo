@@ -1,28 +1,33 @@
-const DIDRegistry = artifacts.require("DIDRegistry");
+import fs from "fs";
+import { createWeb3, getAccounts, getRegistryContract, registerIoTRecord } from "../../lib/registry.mjs";
 
-module.exports = async function (deployer, network, accounts) {
-  // 1. スマートコントラクトのデプロイ
-  await deployer.deploy(DIDRegistry);
-  const registry = await DIDRegistry.deployed();
-
+(async () => {
   console.log("\n=======================================================");
-  console.log("🚀 Truffle Migration: コントラクトデプロイ ＆ 初期特権設定");
+  console.log("📝 手順3: IoTデータAのオンチェーンポリシー登録");
   console.log("=======================================================\n");
-  console.log(`  ▶ デプロイ完了アドレス: ${registry.address}`);
 
-  const company = accounts[0]; // 属性発行元（Issuer）
-  const userA = accounts[2];   // 特権ユーザーA
+  const web3 = createWeb3();
+  const registry = await getRegistryContract(web3);
+  const accounts = await getAccounts(web3);
+  
+  // 企業(accounts[0])がデータ登録者としてポリシーを設定
+  const company = accounts[0]; 
 
-  console.log(`  ▶ 特権ユーザーA (UserA) の初期設定を開始: ${userA}`);
+  // 手送りのテキストではなく、手順2の出力（ipfs_iot_data.json）からスマートに自動引用
+  console.log("[1] 企業が発行したデータA用の情報を読み込み中...");
+  const ipfsDataA = JSON.parse(fs.readFileSync("demo/output/ipfs_iot_data.json", "utf8"));
+  
+  const subjectDidA = "did:example:userA_data";
+  const cidA = ipfsDataA.cid; // ファイルから自動引用
+  const requiredAttribute = "Attribute_A"; 
 
-  // 2. デプロイの直後に、ユーザーAに最初から2つの属性を自動付与する
-  console.log("  ➡️  [Attribute_A] を自動付与中...");
-  await registry.assignAttribute(userA, "Attribute_A", { from: company });
+  console.log(`   ▶ 抽出した DID : ${subjectDidA}`);
+  console.log(`   ▶ 抽出した CID : ${cidA}\n`);
 
-  console.log("  ➡️  [Attribute_B] を自動付与中...");
-  await registry.assignAttribute(userA, "Attribute_B", { from: company });
+  console.log("➡️  データAのポリシーをブロックチェーンに書き込み中...");
+  await registerIoTRecord(registry, company, subjectDidA, cidA, requiredAttribute);
 
-  console.log("\n  ✅ 【初期特権セットアップ完了】");
-  console.log("    → ユーザーAは最初からマルチ属性(A・B)を持つ特権状態として起動しました。");
-  console.log("=======================================================\n");
-};
+  console.log("\n✅ 【データA登録完了】");
+  console.log(`  → ブロックチェーン上に [${requiredAttribute}] でロックされたデータAが追加されました。\n`);
+  console.log("=======================================================");
+})();
