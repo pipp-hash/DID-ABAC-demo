@@ -1,5 +1,5 @@
 import fs from "fs";
-import { createWeb3, getAccounts, getRegistryContract, findDIDDocument, findIoTRecord } from "../../lib/registry.mjs";
+import { createWeb3, getAccounts, getRegistryContract, findDIDDocument, findIoTRecord, assignAttribute } from "../../lib/registry.mjs";
 
 (async () => {
   const web3 = createWeb3();
@@ -8,7 +8,7 @@ import { createWeb3, getAccounts, getRegistryContract, findDIDDocument, findIoTR
   const vc = JSON.parse(fs.readFileSync("demo/output/vc_user_signed.json", "utf8"));
 
   console.log("\n=====================================");
-  console.log("Step6: Verifiable Credential(VC)の検証");
+  console.log("Step6: Verifiable Credential(VC)の検証 (ABAC認可対応)");
   console.log("=======================================\n");
 
   // VC の内容を表示
@@ -18,6 +18,10 @@ import { createWeb3, getAccounts, getRegistryContract, findDIDDocument, findIoTR
   // --- DID Registry 接続 ---
   const registry = await getRegistryContract(web3);
   const accounts = await getAccounts(web3);
+
+  // 役割アカウントの設定 (テスト・デモ用)
+  const company = accounts[0];  // 属性を発行できる信頼された機関 (Issuer)
+  const userA = accounts[2];    // 今回アクセスを試みるユーザーA (閲覧要求者)
 
   const issuerDid = vc.issuer;
   const subjectDid = vc.subject;
@@ -35,14 +39,12 @@ import { createWeb3, getAccounts, getRegistryContract, findDIDDocument, findIoTR
     return;
   }
 
-  // console.log("✅ Issuer DID をブロックチェーンで確認:", issuerDid);
   console.log("   ▶ 所有者アドレス:", issuerResult.owner);
   console.log("   ▶ DID Document:", issuerResult.document, "\n");
 
   // ============================================================
   // 2. Subject DID の存在+一致チェック
   // ============================================================
-
   console.log("[3] Subject(UserA) の DID Document を検索...");
   
   const subjectResult = await findDIDDocument(registry, accounts, subjectDid);
@@ -52,31 +54,46 @@ import { createWeb3, getAccounts, getRegistryContract, findDIDDocument, findIoTR
     return;
   }
 
-  // console.log("✅ Subject DID をブロックチェーンで確認:", subjectDid);
   console.log("   ▶ 所有者アドレス:", subjectResult.owner);
   console.log("   ▶ DID Document:", subjectResult.document, "\n");
 
   // ============================================================
-  // 3. IoT データ CID の存在+一致チェック
+  // 3. IoT データ CID の存在+一致チェック (★ABAC検証の連動)
   // ============================================================
-
-  console.log("[4] IoTデータの記録を検索...");
+  console.log("[4] IoTデータの記録を検索 & 属性ベースアクセス制御(ABAC)を適用...");
   
-  const iotResult = await findIoTRecord(registry, accounts, subjectDid ,cid);
+  // --- 【ABACテスト 1】 属性を持っていない状態でデータアクセスを試みる ---
+  console.log("\n   🔒 [Test 1] UserA (属性なし) がデータアクセスをリクエスト中...");
+  
+  // 第5引数にアクセス要求者である userA を渡してコントラクトで検証させます
+  let iotResult = await findIoTRecord(registry, accounts, subjectDid, cid, userA);
 
   if (!iotResult) {
-    console.log("❌ IoTデータ (DID, CID) がブロックチェーンに存在しません");
+    console.log("   ❌ ABAC判定: アクセス拒否 (必要な属性を持っていません) [期待通りの挙動]");
+  }
+
+  // --- デモ用の属性付与処理 ---
+  const requiredAttribute = "Attribute_A"; // Step3で設定した要求属性
+  console.log(`\n   🔑 [ABAC Provision] ユーザーAにブロックチェーン上で属性 [${requiredAttribute}] を付与します...`);
+  await assignAttribute(registry, company, userA, requiredAttribute);
+  console.log(`   → 属性 [${requiredAttribute}] の付与が完了しました。`);
+
+  // --- 【ABACテスト 2】 属性を持った状態で再度データアクセスを試みる ---
+  console.log("\n   🔓 [Test 2] UserA (属性あり) が再アクセスをリクエスト中...");
+  iotResult = await findIoTRecord(registry, accounts, subjectDid, cid, userA);
+
+  if (!iotResult) {
+    console.log("   ❌ IoTデータ (DID, CID) がブロックチェーンに存在しないか、再度拒否されました。");
     return;
   }
 
-  // console.log("✅ IoTデータをブロックチェーンで確認:");
-  console.log("   ▶ DID:", iotResult.record.did);
-  console.log("   ▶ CID:", iotResult.record.cid, "\n");
+  console.log("   ✅ ABAC判定: アクセス許可！ ブロックチェーンでの属性確認に成功しました。");
+  console.log("   ▶ 閲覧を許可された DID:", iotResult.record.did);
+  console.log("   ▶ 取得した IPFS CID  :", iotResult.record.cid, "\n");
 
   // ============================================================
-  // 4. Issuer の署名検証
+  // 4. Issuer の署名検証 (既存のまま)
   // ============================================================
-
   console.log("[5] Issuer の署名を検証中...");
 
   const issuerRecovered = web3.eth.accounts.recover(vc.proof.hash, vc.proof.signature);
@@ -91,9 +108,8 @@ import { createWeb3, getAccounts, getRegistryContract, findDIDDocument, findIoTR
   }
 
   // ============================================================
-  // 5. UserA の署名検証
+  // 5. UserA の署名検証 (既存のまま)
   // ============================================================
-
   console.log("[6] UserA の署名を検証中...");
 
   const userRecovered = web3.eth.accounts.recover(vc.userProof.hash, vc.userProof.signature);
@@ -108,6 +124,6 @@ import { createWeb3, getAccounts, getRegistryContract, findDIDDocument, findIoTR
   }
 
   console.log("===============================");
-  console.log("Step6 完了: VC検証処理が正常に終了しました");
+  console.log("Step6 完了: VC検証およびABAC処理が正常に終了しました");
   console.log("===============================\n");
 })();
