@@ -1,34 +1,34 @@
-import { createWeb3, getAccounts, getRegistryContract, findIoTRecord } from "../../lib/registry.mjs";
 import fs from "fs";
+import { createWeb3, getAccounts, getRegistryContract, findIoTRecord } from "../../lib/registry.mjs";
 
 (async () => {
-  console.log("\n=========================================");
-  console.log("🔓 属性を手に入れたユーザーBの再アクセス");
-  console.log("=========================================\n");
+  console.log("\n=======================================================");
+  console.log("🔓 手順12: 属性Bを獲得したユーザーBの検証（アクセス権の分離）");
+  console.log("=======================================================\n");
 
   const web3 = createWeb3();
   const registry = await getRegistryContract(web3);
   const accounts = await getAccounts(web3);
+  const userB = accounts[3]; 
+  
+  const vcA = JSON.parse(fs.readFileSync("demo/output/vc_user_signed.json", "utf8"));
+  const vcB = JSON.parse(fs.readFileSync("demo/output/vc_device_auth_B.json", "utf8"));
+  
+  // ✨ すべてのデータをVCからの自動引用形式に完全に統一
+  const cidA = vcA.claim.cid;
+  const cidB = vcB.claim.cid;
 
-  const userB = accounts[3]; // 属性を手に入れたユーザーB
-  console.log("[1] 閲覧要求者(UserB) のアドレス:", userB);
+  console.log(`[⚙️ 状況確認] ユーザーB (UserB): ${userB} ➔ 現在、[Attribute_B] のみを保有\n`);
 
-  // 既存のVCからDIDとCIDを読み込む
-  const vc = JSON.parse(fs.readFileSync("demo/output/vc_user_signed.json", "utf8"));
-  const subjectDid = vc.subject;
-  const cid = vc.claim.cid;
+  // --- テスト1（弾かれる） ---
+  console.log("🔴 【再検証1】 属性Bを持つユーザーBが、データA（要求属性: Attribute_A）にアクセス...");
+  const resultA = await findIoTRecord(registry, accounts, vcA.subject, cidA, userB);
+  if (!resultA) { console.log("  ❌ 【ABAC判定】: アクセス拒否！ (属性Aがないため堅牢にガード)\n"); }
 
-  console.log("\n[2] ブロックチェーン(ABAC)へデータ閲覧を再要求中...\n");
+  // --- テスト2（成功する） ---
+  console.log("🔵 【再検証2】 属性Bを持つユーザーBが、データB（要求属性: Attribute_B）にアクセス...");
+  const resultB = await findIoTRecord(registry, accounts, vcB.subject, cidB, userB);
+  if (resultB) { console.log(`  ✅ 【ABAC判定】: アクセス許可！ ➔ 取得したデータBの CID: ${resultB.record.cid}\n`); }
 
-  // 再度UserBのアドレスでアクセスを試みる
-  const result = await findIoTRecord(registry, accounts, subjectDid, cid, userB);
-
-  if (result) {
-    console.log("✅ 【ABAC判定】: アクセス許可！ (Access Granted)");
-    console.log("  → 理由: 後から付与された属性がブロックチェーン上で正しく検証されました。");
-    console.log(`  → [成功] 取得した IPFS CID: ${result.record.cid}\n`);
-  } else {
-    console.log("❌ 失敗: 属性があるにもかかわらず拒否されました。設定を確認してください。");
-  }
-  console.log("=========================================");
+  console.log("=======================================================");
 })();
